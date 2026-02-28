@@ -5,6 +5,7 @@ This module provides a CLI that exposes all Serena tools as individual commands.
 
 import json
 import sys
+import typing
 from typing import Any
 
 import click
@@ -65,8 +66,22 @@ class SerenaCLI(click.MultiCommand):
         param_model = func_metadata.arg_model
         
         # Build click command parameters from tool parameters
+        # Skip 'project' and 'context' as they are handled by global options
+        skip_params = {'project', 'context'}
+        
+        def parse_list_value(ctx, param, value):
+            """Parse comma-separated values into a list."""
+            if value is None or value == '':
+                return []
+            # Split by comma and strip whitespace
+            return [v.strip() for v in value.split(',') if v.strip()]
+        
         params = []
         for param_name, param_info in func_metadata.arg_model.model_fields.items():
+            # Skip parameters that are handled globally
+            if param_name in skip_params:
+                continue
+            
             param_type = self._get_click_type(param_info.annotation)
             param_help = param_info.description or ""
             default = param_info.default
@@ -82,6 +97,25 @@ class SerenaCLI(click.MultiCommand):
                         default=default if not required else False,
                         help=param_help,
                         is_flag=True,
+                    )
+                )
+            # Handle list types - parse comma-separated values
+            elif (hasattr(param_info.annotation, '__origin__') and param_info.annotation.__origin__ is list) or \
+                 (typing.get_origin(param_info.annotation) is list):
+                if required:
+                    default = click.UNPROCESSED
+                else:
+                    # Use None as default, callback will convert to empty list
+                    default = None
+                
+                params.append(
+                    click.Option(
+                        [f"--{param_name}"],
+                        type=click.STRING,
+                        default=default if not required else [],
+                        help=param_help,
+                        required=required,
+                        callback=parse_list_value,
                     )
                 )
             else:
@@ -127,6 +161,10 @@ class SerenaCLI(click.MultiCommand):
             
             # Execute tool
             try:
+                # For activate_project, pass the project parameter from global option
+                if tool_name == "activate_project" and project:
+                    kwargs["project"] = project
+                
                 result = tool.apply_ex(log_call=verbose, catch_exceptions=True, **kwargs)
                 
                 # Output result
@@ -256,8 +294,9 @@ class SerenaCLI(click.MultiCommand):
         elif annotation == bool:
             # Use flag-style option for bool
             return click.BOOL
-        elif annotation == list or (origin is list and len(typing.get_args(annotation)) > 0):
-            return click.STRING  # Accept as comma-separated string
+        elif origin is list or (hasattr(annotation, '__origin__') and annotation.__origin__ is list):
+            # List types - accept as comma-separated string
+            return click.STRING
         elif annotation == dict or (origin is dict and len(typing.get_args(annotation)) > 0):
             return click.STRING  # Accept as JSON string
         else:
