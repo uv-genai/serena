@@ -48,6 +48,7 @@ explicit = true
 serena = "serena.cli:top_level"
 serena-mcp-server = "serena.cli:start_mcp_server"
 index-project = "serena.cli:index_project"        # deprecated
+serena-cli = "serena.cli_tools:main"
 
 [project.license]
 text = "MIT"
