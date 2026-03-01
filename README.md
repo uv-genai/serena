@@ -122,6 +122,31 @@ Follow the link for specific instructions on how to set up Serena for Claude Cod
 >   * [Serena's project-based workflow](https://oraios.github.io/serena/02-usage/040_workflow.html) and
 >   * [configuring Serena](https://oraios.github.io/serena/02-usage/050_configuration.html).
 
+## Daemon Mode (Fast CLI)
+
+For **~15-20x faster** response times, use Serena's **daemon mode**. Instead of starting a fresh process for each command (~2-3s overhead), the daemon keeps a persistent `SerenaAgent` with warm language servers running in the background.
+
+```bash
+# Start the daemon once
+uv run -m serena.serenad start --project .
+
+# Run commands super fast (~0.1-0.6s each)
+uv run -m serena.serenad_client find_symbol --name_path_pattern "MyClass" --include_body
+uv run -m serena.serenad_client read_file --relative_path src/main.py
+uv run -m serena.serenad_client search_for_pattern --substring_pattern "TODO"
+
+# Stop when done
+uv run -m serena.serenad stop
+```
+
+**Benefits**:
+- ⚡ **~15-20x faster** than standalone mode
+- 🔥 Language servers stay warm (Pyright, TypeScript, etc.)
+- 💾 Symbol caches persist across commands
+- 🔄 Automatic fallback to standalone mode if daemon is down
+
+See the [Daemon Mode Documentation](docs/daemon-mode.md) for complete details.
+
 ## User Guide
 
 Please refer to the [user guide](https://oraios.github.io/serena/02-usage/000_intro.html) for detailed instructions on how to use Serena effectively.
