@@ -129,6 +129,14 @@ class ToolInclusionDefinition:
 
 
 @dataclass
+class NamedToolInclusionDefinition(ToolInclusionDefinition):
+    name: str | None = None
+
+    def __str__(self) -> str:
+        return f"ToolInclusionDefinition[{self.name}]"
+
+
+@dataclass
 class ModeSelectionDefinition:
     base_modes: Sequence[str] | None = None
     default_modes: Sequence[str] | None = None
