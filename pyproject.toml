@@ -49,6 +49,8 @@ serena = "serena.cli:top_level"
 serena-mcp-server = "serena.cli:start_mcp_server"
 index-project = "serena.cli:index_project"        # deprecated
 serena-cli = "serena.cli_tools:main"
+serenad = "serena.serenad:main"                   # Serena daemon manager
+serenad-cli = "serena.serenad_client:main"        # Serena daemon client (thin)
 
 [project.license]
 text = "MIT"

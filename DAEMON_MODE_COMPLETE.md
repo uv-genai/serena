@@ -78,8 +78,8 @@ All components of the Serena daemon mode have been successfully implemented, tes
 - ✅ `~/.pi/agent/skills/serenad/SKILL.md` - Agent skill for using serenad (9.4KB)
 
 ### Modified Files
+- ✅ `pyproject.toml` - **Entry points registered**: `serenad` and `serenad-cli`
 - ✅ `README.md` - Added "Daemon Mode" section with quick start
-- ✅ `pyproject.toml` - Entry points registered (needs cleanup of duplicates)
 
 ---
 
@@ -117,29 +117,40 @@ All tests passed ✅:
 
 ## 🚀 Quick Start Guide
 
+### Install (if not already installed)
+```bash
+# From local source
+cd serena && uv pip install -e .
+
+# Or from GitHub
+uv tool install "git+https://github.com/oraios/serena.git" --force
+```
+
+After installation, `serenad` and `serenad-cli` will be available on your PATH.
+
 ### Start Daemon
 ```bash
-uv run -m serena.serenad start --project .
+serenad start --project .
 ```
 
 ### Run Fast Commands
 ```bash
 # List directory
-uv run -m serena.serenad_client list_dir --relative_path src
+serenad-cli list_dir --relative_path src
 
 # Find symbol
-uv run -m serena.serenad_client find_symbol --name_path_pattern "SerenaAgent" --include_body
+serenad-cli find_symbol --name_path_pattern "SerenaAgent" --include_body
 
 # Search for pattern
-uv run -m serena.serenad_client search_for_pattern --substring_pattern "TODO"
+serenad-cli search_for_pattern --substring_pattern "TODO"
 
 # JSON output
-uv run -m serena.serenad_client --json list_dir --relative_path . | jq .
+serenad-cli --json list_dir --relative_path . | jq .
 ```
 
 ### Stop Daemon
 ```bash
-uv run -m serena.serenad stop
+serenad stop
 ```
 
 ---
