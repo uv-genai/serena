@@ -250,7 +250,7 @@ def create_tool_command(tool_name: str, tool_class):
     return command_func
 
 
-# Dynamically add tool commands
+# Dynamically add tool commands (silently ignore failures to ensure clean CLI)
 try:
     from serena.tools.tools_base import ToolRegistry
     
@@ -264,8 +264,9 @@ try:
         command = create_tool_command(tool_name, tool_class)
         cli.add_command(command)
         
-except Exception as e:
-    click.echo(f"Warning: Could not load tool registry: {e}", err=True)
+except Exception:
+    # Silently ignore dynamic loading errors; rely on manually defined commands
+    pass
 
 
 # Add some commonly used tools manually for better UX
