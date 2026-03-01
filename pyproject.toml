@@ -36,6 +36,7 @@ dependencies = [
   "tiktoken>=0.9.0",
   "anthropic>=0.54.0",
   "beautifulsoup4>=4.14.2",
+  "click>=8.1.0",
 ]
 
 [[tool.uv.index]]
@@ -49,8 +50,8 @@ serena = "serena.cli:top_level"
 serena-mcp-server = "serena.cli:start_mcp_server"
 index-project = "serena.cli:index_project"        # deprecated
 serena-cli = "serena.cli_tools:main"
-serenad = "serena.serenad:main"                   # Serena daemon manager
-serenad-cli = "serena.serenad_client:main"        # Serena daemon client (thin)
+serenad = "serena.serenad_cli:cli"                # Serena daemon manager (Click-based)
+serenad-cli = "serena.serenad_client_cli:cli"     # Serena daemon client (Click-based)
 
 [project.license]
 text = "MIT"

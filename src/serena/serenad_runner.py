@@ -5,14 +5,21 @@ Simple HTTP API daemon runner for Serena.
 
 import os
 import sys
+import json
 import argparse
 import logging
+from pathlib import Path
 
 try:
     from serena.serenad_api import run_server
 except ImportError as e:
     print(f"Error: Could not import Serena modules: {e}")
     sys.exit(1)
+
+# Configuration
+SERENA_DIR = Path.home() / ".serena"
+PID_FILE = SERENA_DIR / "daemon.pid"
+CONFIG_FILE = SERENA_DIR / "daemon.json"
 
 def main():
     parser = argparse.ArgumentParser(description="Serena Daemon Runner")
@@ -24,12 +31,18 @@ def main():
     
     args = parser.parse_args()
     
-    # Write PID file if specified
-    if args.pid_file:
-        from pathlib import Path
-        pid_file = Path(args.pid_file)
-        pid_file.parent.mkdir(parents=True, exist_ok=True)
-        pid_file.write_text(str(os.getpid()))
+    # Write PID file
+    SERENA_DIR.mkdir(parents=True, exist_ok=True)
+    PID_FILE.write_text(str(os.getpid()))
+    
+    # Write config file
+    config = {
+        'host': args.host,
+        'port': args.port,
+        'pid': os.getpid(),
+        'project': args.project
+    }
+    CONFIG_FILE.write_text(json.dumps(config, indent=2))
     
     # Setup logging
     if args.log_file:
