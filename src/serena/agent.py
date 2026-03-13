@@ -6,12 +6,14 @@ import os
 import platform
 import subprocess
 import sys
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
+from contextlib import contextmanager
 from logging import Logger
 from typing import TYPE_CHECKING, Optional, TypeVar
 
 from sensai.util import logging
 from sensai.util.logging import LogTime
+from sensai.util.string import dict_string
 
 from interprompt.jinja_template import JinjaTemplate
 from serena import serena_version
@@ -23,11 +25,12 @@ from serena.config.serena_config import (
     NamedToolInclusionDefinition,
     RegisteredProject,
     SerenaConfig,
+    SerenaPaths,
     ToolInclusionDefinition,
 )
 from serena.dashboard import SerenaDashboardAPI
 from serena.ls_manager import LanguageServerManager
-from serena.project import Project
+from serena.project import MemoriesManager, Project
 from serena.prompt_factory import SerenaPromptFactory
 from serena.task_executor import TaskExecutor
 from serena.tools import ActivateProjectTool, GetCurrentConfigTool, OpenDashboardTool, ReplaceContentTool, Tool, ToolMarker, ToolRegistry
@@ -471,14 +474,18 @@ class SerenaAgent:
         return None
 
     def get_language_server_manager_or_raise(self) -> LanguageServerManager:
-        language_server_manager = self.get_language_server_manager()
-        if language_server_manager is None:
-            raise Exception(
-                "The language server manager is not initialized, indicating a problem during project activation. "
-                "Inform the user, telling them to inspect Serena's logs in order to determine the issue. "
-                "IMPORTANT: Wait for further instructions before you continue!"
-            )
-        return language_server_manager
+        active_project = self.get_active_project_or_raise()
+        return active_project.get_language_server_manager_or_raise()
+
+    def get_log_inspection_instructions(self) -> str:
+        if self.serena_config.web_dashboard:
+            return f"Live logs can be inspected via the dashboard at {self.get_dashboard_url()}"
+        else:
+            log_path = SerenaPaths().last_returned_log_file_path
+            if log_path is not None:
+                return f"Find the current log file here: f{log_path}"
+            else:
+                return "Unfortunately, logs are not available. We recommend enabling the web dashboard/logging in general."
 
     def get_context(self) -> SerenaAgentContext:
         return self._context
@@ -535,15 +542,6 @@ class SerenaAgent:
         )
         return True
 
-    def get_project_root(self) -> str:
-        """
-        :return: the root directory of the active project (if any); raises a ValueError if there is no active project
-        """
-        project = self.get_active_project()
-        if project is None:
-            raise ValueError("Cannot get project root if no project is active.")
-        return project.project_root
-
     def get_exposed_tool_instances(self) -> list["Tool"]:
         """
         :return: the tool instances which are exposed (e.g. to the MCP client).
@@ -595,12 +593,17 @@ class SerenaAgent:
     def create_system_prompt(self) -> str:
         available_tools = self._active_tools
         available_markers = available_tools.tool_marker_names
+        global_memories = MemoriesManager(
+            serena_data_folder=None, read_only_memory_patterns=self.serena_config.read_only_memory_patterns
+        ).list_global_memories()
+        global_memories_str = dict_string(global_memories.to_dict()) if len(global_memories) > 0 else ""
         log.info("Generating system prompt with available_tools=(see active tools), available_markers=%s", available_markers)
         system_prompt = self.prompt_factory.create_system_prompt(
             context_system_prompt=self._format_prompt(self._context.prompt),
             mode_system_prompts=[self._format_prompt(mode.prompt) for mode in self.get_active_modes()],
             available_tools=available_tools.tool_names,
             available_markers=available_markers,
+            global_memories_list=global_memories_str,
         )
 
         # If a project is active at startup, append its activation message
@@ -710,7 +713,7 @@ class SerenaAgent:
                 self.reset_language_server_manager()
 
         # initialize the language server in the background (if in language server mode)
-        if self.is_using_language_server():
+        if self.get_language_backend().is_lsp():
             self.issue_task(init_language_server_manager)
 
         if self._project_activation_callback is not None:
@@ -807,21 +810,7 @@ class SerenaAgent:
         """
         Starts/resets the language server manager for the current project
         """
-        tool_timeout = self.serena_config.tool_timeout
-        if tool_timeout is None or tool_timeout < 0:
-            ls_timeout = None
-        else:
-            if tool_timeout < 10:
-                raise ValueError(f"Tool timeout must be at least 10 seconds, but is {tool_timeout} seconds")
-            ls_timeout = tool_timeout - 5  # the LS timeout is for a single call, it should be smaller than the tool timeout
-
-        # instantiate and start the necessary language servers
-        self.get_active_project_or_raise().create_language_server_manager(
-            log_level=self.serena_config.log_level,
-            ls_timeout=ls_timeout,
-            trace_lsp_communication=self.serena_config.trace_lsp_communication,
-            ls_specific_settings=self.serena_config.ls_specific_settings,
-        )
+        self.get_active_project_or_raise().create_language_server_manager()
 
     def add_language(self, language: Language) -> None:
         """
@@ -875,3 +864,17 @@ class SerenaAgent:
         if ls_manager is None:
             return []
         return ls_manager.get_active_languages()
+
+    @contextmanager
+    def active_project_context(self, project: Project) -> Iterator[None]:
+        """
+        Context manager for temporarily setting/overriding the active project
+
+        :param project: the project to be active
+        """
+        original_project = self._active_project
+        self._active_project = project
+        try:
+            yield
+        finally:
+            self._active_project = original_project
